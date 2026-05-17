@@ -1,0 +1,30 @@
+{
+  "name": "MiniStack AWS Emulator",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/aws-cli:1": {},
+    "ghcr.io/devcontainers/features/sshd:1": {
+      "version": "latest"
+    }
+  },
+  "forwardPorts": [4566, 8080],
+  "portsAttributes": {
+    "4566": {
+      "label": "MiniStack AWS API",
+      "onAutoForward": "notify"
+    },
+    "8080": {
+      "label": "StackPort Web UI",
+      "onAutoForward": "openBrowser"
+    }
+  },
+  "containerEnv": {
+    "AWS_ENDPOINT_URL": "http://localhost:4566",
+    "AWS_DEFAULT_REGION": "us-east-1",
+    "AWS_ACCESS_KEY_ID": "test",
+    "AWS_SECRET_ACCESS_KEY": "test"
+  },
+  "postCreateCommand": "docker compose -f .devcontainer/docker-compose.yml up -d",
+  "postAttachCommand": "docker compose -f .devcontainer/docker-compose.yml ps"
+}
