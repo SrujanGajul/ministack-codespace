@@ -128,6 +128,64 @@ Resume with any of `gh codespace ports forward / ssh / code` — they auto-wake.
 MiniStack and StackPort both have `restart: unless-stopped`, so they auto-start
 when the codespace resumes.
 
+### Robust tunnel pattern (wake-then-forward)
+
+`gh codespace ports forward` auto-wakes the codespace, but if you run it the
+instant the codespace is mid-`ShuttingDown` or just woken, the inner ports may
+not be listening yet and you'll see:
+
+```
+error connecting to tunnel: ... ssh: rejected: connect failed (Connection refused)
+```
+
+Wake first, wait for compose, then tunnel:
+
+```bash
+unset GITHUB_TOKEN
+gh codespace ssh -c ministack-46wxp4w9w6g3jjrw -- "true"   # wakes + waits
+sleep 5                                                     # let compose stabilize
+gh codespace ports forward 4566:4566 -c ministack-46wxp4w9w6g3jjrw &
+gh codespace ports forward 8080:8080 -c ministack-46wxp4w9w6g3jjrw &
+```
+
+Or simply retry the forward — the second attempt usually works because the
+first one already woke the codespace.
+
+For extra safety, wait for containers to actually be healthy:
+
+```bash
+unset GITHUB_TOKEN
+CS=ministack-46wxp4w9w6g3jjrw
+gh codespace ssh -c $CS -- "true"
+until gh codespace ssh -c $CS -- "docker ps --format '{{.Names}} {{.Status}}' | grep -q 'ministack.*healthy'"; do
+  echo "waiting for ministack..."; sleep 3
+done
+gh codespace ports forward 4566:4566 -c $CS &
+gh codespace ports forward 8080:8080 -c $CS &
+```
+
+### One-liner alias
+
+Drop into `~/.bashrc` / `~/.zshrc`:
+
+```bash
+ministack-up() {
+  local CS=ministack-46wxp4w9w6g3jjrw
+  unset GITHUB_TOKEN
+  gh codespace ssh -c "$CS" -- "true" && sleep 5
+  gh codespace ports forward 4566:4566 -c "$CS" &
+  gh codespace ports forward 8080:8080 -c "$CS" &
+  echo "Tunnels backgrounded. http://localhost:8080 ready."
+}
+
+ministack-down() {
+  local CS=ministack-46wxp4w9w6g3jjrw
+  unset GITHUB_TOKEN
+  pkill -f "gh codespace ports forward.*$CS"
+  gh codespace stop -c "$CS"
+}
+```
+
 ---
 
 ## Smoke test (full)
